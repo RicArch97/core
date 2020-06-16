@@ -35,6 +35,7 @@ FLOWS = [
     "control4",
     "coolmaster",
     "coronavirus",
+    "crownstone",
     "daikin",
     "deconz",
     "denonavr",
