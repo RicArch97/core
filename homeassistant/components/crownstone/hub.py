@@ -11,19 +11,24 @@ from crownstone_cloud.exceptions import (
 from crownstone_cloud.lib.cloudModels.spheres import Sphere
 from crownstone_sse import CrownstoneSSE
 from crownstone_sse.const import (
+    EVENT_ABILITY_CHANGE_DIMMING,
+    EVENT_ABILITY_CHANGE_SWITCHCRAFT,
+    EVENT_ABILITY_CHANGE_TAP_TO_TOGGLE,
     EVENT_PRESENCE_ENTER_LOCATION,
     EVENT_PRESENCE_ENTER_SPHERE,
     EVENT_PRESENCE_EXIT_SPHERE,
 )
+from crownstone_sse.events.AbilityChangeEvent import AbilityChangeEvent
 from crownstone_sse.events.PresenceEvent import PresenceEvent
 
+from homeassistant.components import persistent_notification
 from homeassistant.config_entries import ConfigEntry, ConfigEntryNotReady
 from homeassistant.const import CONF_EMAIL, CONF_PASSWORD, EVENT_HOMEASSISTANT_STOP
 from homeassistant.core import Event, HomeAssistant, callback
 from homeassistant.helpers import aiohttp_client
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 
-from .const import CONF_SPHERE, DOMAIN
+from .const import CONF_SPHERE, DOMAIN, LIGHT_PLATFORM, SENSOR_PLATFORM
 from .helpers import UartManager
 
 _LOGGER = logging.getLogger(__name__)
@@ -86,10 +91,19 @@ class CrownstoneHub:
         self.sse.set_access_token(self.cloud.get_access_token())
         self.sse.start()
 
-        # presence updates
+        # subscribe to user presence updates
         self.sse.add_event_listener(EVENT_PRESENCE_ENTER_SPHERE, self.update_presence)
         self.sse.add_event_listener(EVENT_PRESENCE_ENTER_LOCATION, self.update_presence)
         self.sse.add_event_listener(EVENT_PRESENCE_EXIT_SPHERE, self.update_presence)
+
+        # subscribe to Crownstone ability updates
+        self.sse.add_event_listener(EVENT_ABILITY_CHANGE_DIMMING, self.update_ability)
+        self.sse.add_event_listener(
+            EVENT_ABILITY_CHANGE_SWITCHCRAFT, self.update_ability
+        )
+        self.sse.add_event_listener(
+            EVENT_ABILITY_CHANGE_TAP_TO_TOGGLE, self.update_ability
+        )
 
         # create listener for when home assistant is stopped
         self.hass.bus.async_listen(EVENT_HOMEASSISTANT_STOP, self.async_stop)
@@ -97,14 +111,14 @@ class CrownstoneHub:
         # register presence entities
         self.hass.async_create_task(
             self.hass.config_entries.async_forward_entry_setup(
-                self.config_entry, "sensor"
+                self.config_entry, SENSOR_PLATFORM
             )
         )
 
         # register crownstone entities
         self.hass.async_create_task(
             self.hass.config_entries.async_forward_entry_setup(
-                self.config_entry, "light"
+                self.config_entry, LIGHT_PLATFORM
             )
         )
 
@@ -133,10 +147,10 @@ class CrownstoneHub:
         # unload all platform entities
         results = await asyncio.gather(
             self.hass.config_entries.async_forward_entry_unload(
-                self.config_entry, "sensor"
+                self.config_entry, SENSOR_PLATFORM
             ),
             self.hass.config_entries.async_forward_entry_unload(
-                self.config_entry, "light"
+                self.config_entry, LIGHT_PLATFORM
             ),
         )
 
@@ -178,6 +192,33 @@ class CrownstoneHub:
 
         # send signal for state update
         async_dispatcher_send(self.hass, DOMAIN)
+
+    @callback
+    def update_ability(self, ability_event: AbilityChangeEvent) -> None:
+        """Update the ability information."""
+        # make sure the sphere matches current.
+        update_sphere = self.cloud.spheres.find_by_id(ability_event.sphere_id)
+        if update_sphere.cloud_id == self.sphere.cloud_id:
+            update_crownstone = self.sphere.crownstones.find_by_uid(
+                ability_event.unique_id
+            )
+            if update_crownstone is not None:
+                if not ability_event.ability_synced_to_crownstone:
+                    # show the user when the crownstone ability has changed but not synced yet.
+                    persistent_notification.async_create(
+                        hass=self.hass,
+                        message=f"Crownstone {update_crownstone.name} ability {ability_event.ability_type} changed to {ability_event.enabled}, "
+                        f"however this change has not been synced to the Crownstone yet.",
+                        title="Crownstone ability changed",
+                        notification_id="crownstone_ability_changed",
+                    )
+
+                # write the change to the crownstone entity.
+                update_crownstone.abilities[
+                    ability_event.ability_type
+                ].is_enabled = ability_event.ability_enabled
+                # signal the entity updater service.
+                async_dispatcher_send(self.hass, DOMAIN)
 
     @callback
     async def async_stop(self, event: Event) -> None:

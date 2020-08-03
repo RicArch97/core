@@ -90,7 +90,7 @@ class Presence(Entity):
         return ", ".join(_state)
 
     @property
-    def state_attributes(self) -> Optional[Dict[str, Any]]:
+    def device_state_attributes(self) -> Optional[Dict[str, Any]]:
         """
         State attributes for presence sensor.
 
@@ -113,7 +113,7 @@ class Presence(Entity):
         """Return device information."""
         return {
             "identifiers": {(DOMAIN, self.unique_id)},
-            "name": self.name,
+            "name": f"{self.name} presence",
             "manufacturer": "Crownstone",
             "model": self.description,
         }
