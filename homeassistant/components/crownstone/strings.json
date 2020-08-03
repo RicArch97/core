@@ -21,12 +21,22 @@
         "title": "Crownstone"
       },
       "sphere": {
-	    "data": {
-	      "sphere": "Sphere name"
-	    },
-	    "description": "Select a Sphere that has to be configured in Home Assistant.",
-	    "title": "Sphere"
+        "data": {
+          "sphere": "Sphere name"
+        },
+        "description": "Select a Sphere that has to be configured in Home Assistant.",
+        "title": "Sphere"
       }
+    }
+  },
+  "device_automation": {
+    "trigger_type": {
+      "user_entered": "A user has entered the area",
+      "user_left": "A user has left the area",
+      "multiple_entered": "Multiple users have entered the area",
+      "multiple_left": "Multiple users have left the area",
+      "all_entered": "All users have entered the area",
+      "all_left": "All users have left the area"
     }
   }
 }
