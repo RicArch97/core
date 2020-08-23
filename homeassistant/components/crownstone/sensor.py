@@ -76,18 +76,18 @@ class Presence(Entity):
         return self.presence_holder.cloud_id
 
     @property
-    def state(self):
+    def state(self) -> str:
         """
         Return a friendly state of the presence detector.
 
         This state is a list of the first names represented as string.
         """
-        _state = []
+        presence_list = []
         for user_id in self.presence_holder.present_people:
             user = self.hub.sphere.users.find_by_id(user_id)
-            _state.append(user.first_name)
+            presence_list.append(user.first_name)
 
-        return ", ".join(_state)
+        return ", ".join(presence_list)
 
     @property
     def device_state_attributes(self) -> Optional[Dict[str, Any]]:

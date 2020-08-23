@@ -31,12 +31,12 @@
   },
   "device_automation": {
     "trigger_type": {
-      "user_entered": "A user has entered the area",
-      "user_left": "A user has left the area",
-      "multiple_entered": "Multiple users have entered the area",
-      "multiple_left": "Multiple users have left the area",
-      "all_entered": "All users have entered the area",
-      "all_left": "All users have left the area"
+      "user_entered": "A user has entered the {entity_name}",
+      "user_left": "A user has left the {entity_name}",
+      "multiple_entered": "Multiple users have entered the {entity_name}",
+      "multiple_left": "Multiple users have left the {entity_name}",
+      "all_entered": "All users have entered the {entity_name}",
+      "all_left": "All users have left the {entity_name}"
     }
   }
 }

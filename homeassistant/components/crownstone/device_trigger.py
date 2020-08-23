@@ -3,44 +3,84 @@ from typing import List
 
 import voluptuous as vol
 
-from homeassistant.components.automation import AutomationActionType, state
+from homeassistant.components.automation import AutomationActionType, template
+from homeassistant.components.crownstone.const import (
+    ALL_USERS_ENTERED,
+    ALL_USERS_LEFT,
+    CONF_USER,
+    CONF_USERS,
+    DOMAIN,
+    MULTIPLE_USERS_ENTERED,
+    MULTIPLE_USERS_LEFT,
+    SENSOR_PLATFORM,
+    USER_ENTERED,
+    USER_LEFT,
+)
+from homeassistant.components.crownstone.helpers import set_to_dict
 from homeassistant.components.device_automation import TRIGGER_BASE_SCHEMA
 from homeassistant.const import (
+    CONF_DEVICE,
     CONF_DEVICE_ID,
     CONF_DOMAIN,
     CONF_ENTITY_ID,
     CONF_PLATFORM,
     CONF_TYPE,
-    STATE_OFF,
-    STATE_ON,
+    CONF_VALUE_TEMPLATE,
 )
 from homeassistant.core import CALLBACK_TYPE, HomeAssistant
 from homeassistant.helpers import config_validation as cv, entity_registry
 from homeassistant.helpers.typing import ConfigType
 
-from .const import CONF_USER, DOMAIN, SENSOR_PLATFORM
-
 CROWNSTONE_USERS = set()
 
 TRIGGER_TYPES = {
-    "user_entered",
-    "user_left",
-    "multiple_entered",
-    "multiple_left",
-    "all_entered",
-    "all_left",
+    USER_ENTERED,
+    USER_LEFT,
+    MULTIPLE_USERS_ENTERED,
+    MULTIPLE_USERS_LEFT,
+    ALL_USERS_ENTERED,
+    ALL_USERS_LEFT,
 }
 
 TRIGGER_SCHEMA = TRIGGER_BASE_SCHEMA.extend(
     {
         vol.Required(CONF_ENTITY_ID): cv.entity_id,
         vol.Required(CONF_TYPE): vol.In(TRIGGER_TYPES),
-        vol.Required(CONF_USER): vol.In(CROWNSTONE_USERS),
     }
 )
 
+TRIGGER_SCHEMA = vol.All(
+    cv.key_value_schemas(
+        CONF_TYPE,
+        {
+            USER_ENTERED: TRIGGER_SCHEMA.extend(
+                {vol.Required(CONF_USER): vol.In(CROWNSTONE_USERS)}
+            ),
+            USER_LEFT: TRIGGER_SCHEMA.extend(
+                {vol.Required(CONF_USER): vol.In(CROWNSTONE_USERS)}
+            ),
+            MULTIPLE_USERS_ENTERED: TRIGGER_SCHEMA.extend(
+                {
+                    vol.Required(CONF_USERS): cv.multi_select(
+                        set_to_dict(CROWNSTONE_USERS)
+                    )
+                }
+            ),
+            MULTIPLE_USERS_LEFT: TRIGGER_SCHEMA.extend(
+                {
+                    vol.Required(CONF_USERS): cv.multi_select(
+                        set_to_dict(CROWNSTONE_USERS)
+                    )
+                }
+            ),
+            ALL_USERS_ENTERED: TRIGGER_SCHEMA,
+            ALL_USERS_LEFT: TRIGGER_SCHEMA,
+        },
+    )
+)
 
-def _get_crownstone_users(hass: HomeAssistant, config_entry_id: str) -> None:
+
+def get_crownstone_users(hass: HomeAssistant, config_entry_id: str) -> None:
     """Fetch the users for the Crownstone config entry."""
     crownstone_hub = hass.data[DOMAIN][config_entry_id]
     for user in crownstone_hub.sphere.users:
@@ -57,12 +97,12 @@ async def async_get_triggers(hass: HomeAssistant, device_id: str) -> List[dict]:
         if entry.domain == SENSOR_PLATFORM:
             # Get all the Crownstone users from the Crownstone integration
             # Point to the correct config entry for this entity using the config entry id
-            _get_crownstone_users(hass, entry.config_entry_id)
+            get_crownstone_users(hass, entry.config_entry_id)
 
             for trigger in TRIGGER_TYPES:
                 triggers.append(
                     {
-                        CONF_PLATFORM: "device",
+                        CONF_PLATFORM: CONF_DEVICE,
                         CONF_DEVICE_ID: device_id,
                         CONF_DOMAIN: DOMAIN,
                         CONF_ENTITY_ID: entry.entity_id,
@@ -74,10 +114,24 @@ async def async_get_triggers(hass: HomeAssistant, device_id: str) -> List[dict]:
 
 
 async def async_get_trigger_capabilities(hass: HomeAssistant, config: dict) -> dict:
-    """List trigger capabilities."""
-    return {
-        "extra_fields": vol.Schema({vol.Required(CONF_USER): vol.In(CROWNSTONE_USERS)})
-    }
+    """List trigger capabilities based on trigger type."""
+    if config[CONF_TYPE] in (USER_ENTERED, USER_LEFT):
+        return {
+            "extra_fields": vol.Schema(
+                {vol.Required(CONF_USER): vol.In(CROWNSTONE_USERS)}
+            )
+        }
+    if config[CONF_TYPE] in (MULTIPLE_USERS_ENTERED, MULTIPLE_USERS_LEFT):
+        return {
+            "extra_fields": vol.Schema(
+                {
+                    vol.Required(CONF_USERS): cv.multi_select(
+                        set_to_dict(CROWNSTONE_USERS)
+                    )
+                }
+            )
+        }
+    return {}
 
 
 async def async_attach_trigger(
@@ -89,24 +143,13 @@ async def async_attach_trigger(
     """Attach a trigger."""
     config = TRIGGER_SCHEMA(config)
 
-    # Implement your own logic to attach triggers.
-    # Generally we suggest to re-use the existing state or event
-    # triggers from the automation integration.
+    presence_template = None
 
-    if config[CONF_TYPE] == "turned_on":
-        from_state = STATE_OFF
-        to_state = STATE_ON
-    else:
-        from_state = STATE_ON
-        to_state = STATE_OFF
-
-    state_config = {
-        state.CONF_PLATFORM: "state",
-        CONF_ENTITY_ID: config[CONF_ENTITY_ID],
-        state.CONF_FROM: from_state,
-        state.CONF_TO: to_state,
+    template_config = {
+        template.CONF_PLATFORM: "template",
+        CONF_VALUE_TEMPLATE: presence_template,
     }
-    state_config = state.TRIGGER_SCHEMA(state_config)
-    return await state.async_attach_trigger(
-        hass, state_config, action, automation_info, platform_type="device"
+    template_config = template.TRIGGER_SCHEMA(template_config)
+    return await template.async_attach_trigger(
+        hass, template_config, action, automation_info, platform_type=CONF_DEVICE
     )
