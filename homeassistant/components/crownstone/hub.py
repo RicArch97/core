@@ -28,7 +28,14 @@ from homeassistant.core import Event, HomeAssistant, callback
 from homeassistant.helpers import aiohttp_client
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 
-from .const import CONF_SPHERE, DOMAIN, LIGHT_PLATFORM, SENSOR_PLATFORM
+from .const import (
+    CONF_SPHERE,
+    LIGHT_PLATFORM,
+    SENSOR_PLATFORM,
+    SIG_ABILITY_UPDATE,
+    SIG_STATE_UPDATE,
+    SIG_TRIGGER_EVENT,
+)
 from .helpers import UartManager
 
 _LOGGER = logging.getLogger(__name__)
@@ -61,7 +68,6 @@ class CrownstoneHub:
         self.cloud = CrownstoneCloud(
             email=customer_email,
             password=customer_password,
-            loop=self.hass.loop,
             websession=aiohttp_client.async_get_clientsession(self.hass),
         )
         # Login
@@ -162,6 +168,7 @@ class CrownstoneHub:
         update_sphere = self.cloud.spheres.find_by_id(presence_event.sphere_id)
         if update_sphere.cloud_id == self.sphere.cloud_id:
             user = self.sphere.users.find_by_id(presence_event.user_id)
+            altered_user = f"{user.first_name} {user.last_name}"
 
             if presence_event.type == EVENT_PRESENCE_ENTER_LOCATION:
                 # remove the user from all locations
@@ -190,8 +197,11 @@ class CrownstoneHub:
                 # remove the user from the present people.
                 self.sphere.present_people.remove(user.cloud_id)
 
+            # send signal for trigger event
+            async_dispatcher_send(self.hass, SIG_TRIGGER_EVENT, altered_user)
+
         # send signal for state update
-        async_dispatcher_send(self.hass, DOMAIN)
+        async_dispatcher_send(self.hass, SIG_STATE_UPDATE)
 
     @callback
     def update_ability(self, ability_event: AbilityChangeEvent) -> None:
@@ -207,8 +217,9 @@ class CrownstoneHub:
                     # show the user when the crownstone ability has changed but not synced yet.
                     persistent_notification.async_create(
                         hass=self.hass,
-                        message=f"Crownstone {update_crownstone.name} ability {ability_event.ability_type} changed to {ability_event.enabled}, "
-                        f"however this change has not been synced to the Crownstone yet.",
+                        message=f"Crownstone {update_crownstone.name} ability {ability_event.ability_type} changed to "
+                        f"{ability_event.ability_enabled}, however this change has not been synced to the "
+                        f"Crownstone yet.",
                         title="Crownstone ability changed",
                         notification_id="crownstone_ability_changed",
                     )
@@ -218,7 +229,7 @@ class CrownstoneHub:
                     ability_event.ability_type
                 ].is_enabled = ability_event.ability_enabled
                 # signal the entity updater service.
-                async_dispatcher_send(self.hass, DOMAIN)
+                async_dispatcher_send(self.hass, SIG_ABILITY_UPDATE)
 
     @callback
     async def async_stop(self, event: Event) -> None:

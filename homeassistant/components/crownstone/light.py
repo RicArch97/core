@@ -11,7 +11,7 @@ from homeassistant.components.light import (
 )
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 
-from .const import CROWNSTONE_EXCLUDE, CROWNSTONE_TYPES, DOMAIN
+from .const import CROWNSTONE_EXCLUDE, CROWNSTONE_TYPES, DOMAIN, SIG_ABILITY_UPDATE
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -124,7 +124,9 @@ class Crownstone(LightEntity):
     async def async_added_to_hass(self) -> None:
         """Set up a listener when this entity is added to HA."""
         self.async_on_remove(
-            async_dispatcher_connect(self.hass, DOMAIN, self.async_write_ha_state)
+            async_dispatcher_connect(
+                self.hass, SIG_ABILITY_UPDATE, self.async_write_ha_state
+            )
         )
 
     async def async_turn_on(self, **kwargs: Any) -> None:

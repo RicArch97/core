@@ -3,11 +3,21 @@ import logging
 from typing import Any, Dict, Optional
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
+from homeassistant.const import CONF_ENTITY_ID
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity import Entity
 
-from .const import DOMAIN, PRESENCE_LOCATION, PRESENCE_SPHERE
+from .const import (
+    CONF_USER,
+    DOMAIN,
+    EVENT_USER_ENTERED,
+    EVENT_USER_LEFT,
+    PRESENCE_LOCATION,
+    PRESENCE_SPHERE,
+    SIG_STATE_UPDATE,
+    SIG_TRIGGER_EVENT,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -53,6 +63,7 @@ class Presence(Entity):
         self.hub = hub
         self.presence_holder = presence_holder
         self.description = description
+        self.last_state = []
         self._icon = icon
 
     @property
@@ -80,12 +91,15 @@ class Presence(Entity):
         """
         Return a friendly state of the presence detector.
 
+        Save the last state as list for comparison to the updated state.
         This state is a list of the first names represented as string.
         """
         presence_list = []
+        self.last_state = []
         for user_id in self.presence_holder.present_people:
             user = self.hub.sphere.users.find_by_id(user_id)
             presence_list.append(user.first_name)
+            self.last_state.append(user_id)
 
         return ", ".join(presence_list)
 
@@ -121,5 +135,34 @@ class Presence(Entity):
     async def async_added_to_hass(self) -> None:
         """Set up a listener when this entity is added to HA."""
         self.async_on_remove(
-            async_dispatcher_connect(self.hass, DOMAIN, self.async_write_ha_state)
+            async_dispatcher_connect(
+                self.hass, SIG_STATE_UPDATE, self.async_write_ha_state
+            )
         )
+        self.async_on_remove(
+            async_dispatcher_connect(
+                self.hass, SIG_TRIGGER_EVENT, self.async_fire_trigger_event
+            )
+        )
+
+    @callback
+    async def async_fire_trigger_event(self, altered_user: str):
+        """
+        Fire event based on the state change.
+
+        This method is called to provide the correct entity id to the event,
+        to know which entity was updated.
+
+        This method is called before the new state is written to the state machine,
+        to compare the current state to the updated state.
+        """
+        event_data = {CONF_ENTITY_ID: self.entity_id, CONF_USER: altered_user}
+        # compare the last state to the updated state.
+        # this is for an extra check, rather than just taking the SSE event type.
+        if len(self.presence_holder.present_people) > len(self.last_state):
+            self.hass.bus.async_fire(EVENT_USER_ENTERED, event_data)
+        elif len(self.presence_holder.present_people) < len(self.last_state):
+            self.hass.bus.async_fire(EVENT_USER_LEFT, event_data)
+        else:
+            # state is unchanged, don't fire an event.
+            return
