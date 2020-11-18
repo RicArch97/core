@@ -27,14 +27,12 @@ def crownstone_setup():
 def get_mocked_crownstone_cloud(spheres: dict):
     """Return a mocked Crownstone Cloud instance."""
     mock_cloud = Mock()
-    mock_cloud.reset = Mock()
-    mock_cloud.spheres = Mock()
-    mock_cloud.spheres.async_update_sphere_data = AsyncMock()
-    mock_cloud.spheres.spheres = spheres
-    mock_cloud.spheres.__iter__ = Mock(
-        return_value=iter(mock_cloud.spheres.spheres.values())
+    mock_cloud.cloud_data = Mock()
+    mock_cloud.cloud_data.spheres = spheres
+    mock_cloud.cloud_data.__iter__ = Mock(
+        return_value=iter(mock_cloud.cloud_data.spheres.values())
     )
-    mock_cloud.async_login = AsyncMock()
+    mock_cloud.async_initialize = AsyncMock()
 
     return mock_cloud
 
@@ -107,7 +105,6 @@ async def test_successful_login_1_sphere_configured(hass):
 
     assert result["type"] == data_entry_flow.RESULT_TYPE_CREATE_ENTRY
     assert result["data"] == MOCK_CONF
-    cloud.reset.assert_called()
 
 
 async def test_successful_login_multiple_spheres_configured(hass):
@@ -143,7 +140,9 @@ async def test_abort_if_configured(hass):
 
     # create mocked entry
     MockConfigEntry(
-        domain=DOMAIN, data=MOCK_CONF, unique_id=MOCK_CONF[CONF_ID],
+        domain=DOMAIN,
+        data=MOCK_CONF,
+        unique_id=MOCK_CONF[CONF_ID],
     ).add_to_hass(hass)
 
     cloud = get_mocked_crownstone_cloud(get_mocked_sphere_data(1))
@@ -159,7 +158,9 @@ async def test_authentication_errors(hass):
     """Test flow with wrong auth errors."""
     cloud = get_mocked_crownstone_cloud(get_mocked_sphere_data(1))
     # side effect: auth error login failed
-    cloud.async_login.side_effect = CrownstoneAuthenticationError(type="LOGIN_FAILED")
+    cloud.async_initialize.side_effect = CrownstoneAuthenticationError(
+        exception_type="LOGIN_FAILED"
+    )
 
     result = await start_flow(hass, cloud)
 
@@ -167,8 +168,8 @@ async def test_authentication_errors(hass):
     assert result["errors"] == {"base": "invalid_auth"}
 
     # side effect: auth error account not verified
-    cloud.async_login.side_effect = CrownstoneAuthenticationError(
-        type="LOGIN_FAILED_EMAIL_NOT_VERIFIED"
+    cloud.async_initialize.side_effect = CrownstoneAuthenticationError(
+        exception_type="LOGIN_FAILED_EMAIL_NOT_VERIFIED"
     )
 
     result = await start_flow(hass, cloud)
@@ -177,8 +178,8 @@ async def test_authentication_errors(hass):
     assert result["errors"] == {"base": "account_not_verified"}
 
     # side effect: auth error no email/password provided
-    cloud.async_login.side_effect = CrownstoneAuthenticationError(
-        type="USERNAME_EMAIL_REQUIRED"
+    cloud.async_initialize.side_effect = CrownstoneAuthenticationError(
+        exception_type="USERNAME_EMAIL_REQUIRED"
     )
 
     result = await start_flow(hass, cloud)
@@ -191,7 +192,7 @@ async def test_unknown_error(hass):
     """Test flow with unknown error."""
     cloud = get_mocked_crownstone_cloud(get_mocked_sphere_data(1))
     # side effect: unknown error
-    cloud.async_login.side_effect = CrownstoneUnknownError
+    cloud.async_initialize.side_effect = CrownstoneUnknownError
 
     result = await start_flow(hass, cloud)
 

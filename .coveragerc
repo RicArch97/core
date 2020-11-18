@@ -169,6 +169,9 @@ omit =
     homeassistant/components/crownstone/hub.py
     homeassistant/components/crownstone/light.py
     homeassistant/components/crownstone/sensor.py
+    homeassistant/components/crownstone/device_trigger.py
+    homeassistant/components/crownstone/data_updater.py
+    homeassistant/components/crownstone/devices.py
     homeassistant/components/cups/sensor.py
     homeassistant/components/currencylayer/sensor.py
     homeassistant/components/daikin/*
