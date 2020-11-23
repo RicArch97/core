@@ -76,6 +76,18 @@ async def start_flow(hass, mocked_cloud: Mock):
     return result
 
 
+async def test_abort_if_existing_entry(hass):
+    """Check if flow is aborted when an entry already exists."""
+    MockConfigEntry(domain=DOMAIN).add_to_hass(hass)
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": "user"}
+    )
+    # test if aborted
+    assert result["type"] == data_entry_flow.RESULT_TYPE_ABORT
+    assert result["reason"] == "single_instance_allowed"
+
+
 async def test_no_user_input(hass):
     """Test the flow done in the correct way."""
     # test if a form is returned if no input is provided
@@ -126,32 +138,6 @@ async def test_successful_login_multiple_spheres_configured(hass):
     # show the sphere form
     assert result["type"] == data_entry_flow.RESULT_TYPE_FORM
     assert result["step_id"] == "sphere"
-
-
-async def test_abort_if_configured(hass):
-    """Test flow with correct login input and abort if sphere already configured."""
-    # create mock entry conf
-    create_mocked_entry_conf(
-        unique_id="sphere_name_1",
-        email="example@homeassistant.com",
-        password="homeassistantisawesome",
-        sphere_name="sphere_name_1",
-    )
-
-    # create mocked entry
-    MockConfigEntry(
-        domain=DOMAIN,
-        data=MOCK_CONF,
-        unique_id=MOCK_CONF[CONF_ID],
-    ).add_to_hass(hass)
-
-    cloud = get_mocked_crownstone_cloud(get_mocked_sphere_data(1))
-
-    result = await start_flow(hass, cloud)
-
-    # test if we abort if we try to configure the same entry
-    assert result["type"] == data_entry_flow.RESULT_TYPE_ABORT
-    assert result["reason"] == "already_configured"
 
 
 async def test_authentication_errors(hass):
