@@ -156,6 +156,11 @@ class Crownstone(CrownstoneDevice, LightEntity):
             return SUPPORT_BRIGHTNESS
         return 0
 
+    @property
+    def should_poll(self) -> bool:
+        """Return if polling is required after switching."""
+        return False
+
     async def async_added_to_hass(self) -> None:
         """Set up a listener when this entity is added to HA."""
         self.async_on_remove(
@@ -223,12 +228,9 @@ class Crownstone(CrownstoneDevice, LightEntity):
                         device.id, sw_version=self.crownstone.sw_version
                     )
 
-            # get entity
-            entity = entity_reg.async_get(self.entity_id)
-            if entity is not None:
-                # check if update is necessary
-                if not entity.name == self.name:
-                    entity_reg.async_update_entity(self.entity_id, name=self.name)
+            # check if entity update is necessary
+            if not self.registry_entry.name == self.name:
+                entity_reg.async_update_entity(self.entity_id, name=self.name)
 
         self.async_write_ha_state()
 
