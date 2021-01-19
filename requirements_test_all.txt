@@ -243,13 +243,13 @@ coronavirus==1.1.1
 # credstash==1.15.0
 
 # homeassistant.components.crownstone
-crownstone-cloud==1.4.3
+crownstone-cloud==1.4.4
 
 # homeassistant.components.crownstone
 crownstone-sse==1.2.5
 
 # homeassistant.components.crownstone
-crownstone-uart==0.7.7
+crownstone-uart==1.0.0
 
 # homeassistant.components.datadog
 datadog==0.15.0
@@ -1057,6 +1057,9 @@ sentry-sdk==0.20.3
 # homeassistant.components.sharkiq
 sharkiqpy==0.1.8
 
+# homeassistant.components.crownstone
+sigfig==1.1.8
+
 # homeassistant.components.sighthound
 simplehound==0.3
 
@@ -1162,6 +1165,9 @@ twilio==6.32.0
 
 # homeassistant.components.twinkly
 twinkly-client==0.0.2
+
+# homeassistant.components.crownstone
+tzlocal==2.1
 
 # homeassistant.components.upb
 upb_lib==0.4.12
